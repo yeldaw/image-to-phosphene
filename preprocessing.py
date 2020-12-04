@@ -5,7 +5,7 @@ import train
 import matplotlib.pyplot as  plt
 
 
-def update_image(image, data, loc, reverse=False):
+def update_image(image, data, loc, reverse=False, shrink=False):
     new_data = data[[i for i in data.keys()][0]]['annorect']
     joint_dict = new_data['annopoints']
     x_coords = [joint_dict[key]['x'] for key in joint_dict.keys()]
@@ -24,28 +24,35 @@ def update_image(image, data, loc, reverse=False):
     ]
     # new_image = image[coords[0]:coords[1], coords[2]:coords[3]]
     # plt.imsave(loc, new_image)
-    new_data['annopoints'] = update_joints(joint_dict, coords[0], coords[2])
+    new_data['annopoints'] = update_joints(joint_dict, coords[0], coords[1], coords[2], coords[3], reverse, shrink)
+    data[[i for i in data.keys()][0]]['annorect'] = update_head(new_data, coords[0], coords[2], reverse, shrink)
+    return data
+
+
+def update_joints(data, y1, y2, x1, x2, reverse, shrink):
     if reverse:
-        new_data['annopoints'] = rev_update_joints(joint_dict, coords[1], coords[3])
-    data[[i for i in data.keys()][0]]['annorect'] = update_head(new_data, coords[0], coords[2])
+        for key in data.keys():
+            data[key]['x'] = y2 - data[key]['x']
+            data[key]['y'] = x2 - data[key]['y']
+    else:
+        for key in data.keys():
+            data[key]['x'] = data[key]['x'] - x1
+            data[key]['y'] = data[key]['y'] - y1
+    if shrink:
+        rescale_joints(data)
     return data
 
 
-def update_joints(data, y1, x1):
-    for key in data.keys():
-        data[key]['x'] = data[key]['x'] - x1
-        data[key]['y'] = data[key]['y'] - y1
-    return data
-
-
-def rev_update_joints(data, y2, x2):
-    for key in data.keys():
-        data[key]['x'] = y2 - data[key]['x']
-        data[key]['y'] = x2 - data[key]['y']
-    return data
-
-
-def update_head(data, y1, x1):
+def update_head(data, y1, x1, reverse, shrink):
+    '''
+    Head shrink, head reverse not implemented
+    :param data:
+    :param y1:
+    :param x1:
+    :param reverse:
+    :param shrink:
+    :return:
+    '''
     data['x1'] = data['x1'] - x1
     data['x2'] = data['x2'] - x1
     data['y1'] = data['y1'] - y1
@@ -53,21 +60,43 @@ def update_head(data, y1, x1):
     return data
 
 
-def pad_image(image, dir, x_size, y_size, save_dir):
-    img_array = plt.imread(os.path.join(dir, image))
+def pad_image(image, image_dir, x_size, y_size, save_dir):
+    img_array = plt.imread(os.path.join(image_dir, image))
     if len(img_array) > x_size or len(img_array[0]) > y_size:
         return False
     zero_image = np.full((x_size, y_size, 3), 255)
-    zero_image[:img_array.shape[0], :img_array.shape[1]] = np.flip(np.flip(img_array, 1), 0)
-    new_name = image.strip('.jpg')[::-1] + '.jpg'
-    if new_name == image:
-        new_name = new_name.strip('.jpg') + '-1.jpg'
-    plt.imsave(os.path.join(save_dir, new_name), zero_image.astype('uint8'))
+    zero_image[:img_array.shape[0], :img_array.shape[1]] = img_array
+    # zero_image[:img_array.shape[0], :img_array.shape[1]] = np.flip(np.flip(img_array, 1), 0)
+    # new_name = image.strip('.jpg')[::-1] + '.jpg'
+    # if new_name == image:
+    #     new_name = new_name.strip('.jpg') + '-1.jpg'
+    plt.imsave(os.path.join(save_dir, image), zero_image.astype('uint8'))
     return True
 
 
-image_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
+def rescale_image(image, scale_value, image_dir, save_dir):
+    import cv2
 
+    img = cv2.imread(image_dir + image, cv2.IMREAD_UNCHANGED)
+    if (img.shape[0] > 256 or img.shape[1] > 256) and (img.shape[0] < 512 and img.shape[1] < 512):
+        width = int(img.shape[1] * scale_value / 100)
+        height = int(img.shape[0] * scale_value / 100)
+        dim = (width, height)
+        # resize image
+        resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        cv2.imwrite(save_dir + image, resized)
+        # print('Resized Dimensions : ', resized.shape)
+
+        # cv2.imshow("Resized image", resized)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+
+def rescale_joints(data):
+    return data
+
+
+image_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
 
 # mat_file = "F:\\Thesis Datasets\\mpii_human_pose_v1_u12_2\\mpii_human_pose_v1_u12_1.mat"
@@ -79,17 +108,19 @@ image_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
 
 list_of_data = load_json(image_dir, 'mpii_singular.json')
+padding = 256
+
 for key in list_of_data.keys():
-    list_of_data[key] = update_image(plt.imread(os.path.join(image_dir + "images\\" + key)), list_of_data[key],
-              os.path.join(image_dir + "cut_images\\", key), reverse=True)
+    list_of_data[key] = update_image(plt.imread(os.path.join(image_dir + f"cut_images_{padding}_white\\" + key)), list_of_data[key],
+              os.path.join(image_dir + "cut_images\\", key), reverse=False, shrink=True)
+    # rescale_image(key, 50, image_dir + 'cut_images\\', image_dir + 'cut_images_256\\')
+create_json(list_of_data, image_dir, 'mpii_singular_updated_256.json')
 
-# create_json(list_of_data, image_dir, 'mpii_singular_updated.json')
-
-
+# padding = 256
 # list_of_data = load_json(image_dir, 'mpii_singular_updated.json')
-# padding = 512
-# for key in list_of_data.keys():
-#     padded = pad_image(key, image_dir + "cut_images\\", padding, padding, image_dir + f"extended_images_{padding}_white\\")
+# list_of_imgs = os.listdir(image_dir + 'cut_images_256\\')
+# for key in list_of_imgs:
+#     padded = pad_image(key, image_dir + "cut_images_256\\", padding, padding, image_dir + f"cut_images_{padding}_white\\")
 #     # if padded:
 #     #     train.display(image_dir + "padded_images\\", key, list_of_data[key])
 #     print(key)

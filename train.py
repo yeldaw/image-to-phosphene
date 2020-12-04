@@ -42,29 +42,17 @@ class Network:
         self.net.hybridize(static_alloc=True, static_shape=True)
         self.net.add(
             # nn.BatchNorm(),
-            # nn.Conv2D(16, (7, 7), activation='softrelu'),
-            # nn.Conv1D(32, (5, 5), activation='softrelu'),
-            # nn.MaxPool2D((2, 2)),
-            # nn.Conv2D(64, (3, 3), activation='softrelu'),
-            # nn.AvgPool2D((2, 2), strides=1),
-            # nn.Conv2D(64, (5, 5), activation='softrelu'),
-            # nn.MaxPool2D((2, 2), strides=3),
-            # nn.Conv2D(64, (3, 3), activation='softrelu'),
-            # nn.AvgPool2D((2, 2)),
-            # nn.Conv2D(128, (5, 5), activation='softrelu'),
-            # nn.Conv2D(32, (5, 5), activation='softrelu'),
-            # nn.MaxPool2D((2, 2)),
-            # nn.Dense(32, flatten=True)
-            nn.Conv2D(channels=6, kernel_size=5, activation='relu'),
-            # nn.MaxPool2D(pool_size=2, strides=2),
-            nn.Conv2D(channels=16, kernel_size=3, activation='relu'),
-            nn.MaxPool2D(pool_size=2, strides=2),
-            nn.Dense(200, activation="relu"),
-            nn.Dense(80, activation="relu"),
+            nn.Conv2D(16, (7, 7), activation='softrelu'),
+            nn.Conv2D(32, (5, 5), activation='softrelu'),
+            nn.MaxPool2D((2, 2)),
+            nn.Conv2D(64, (3, 3), activation='softrelu'),
+            nn.Conv2D(64, (5, 5), activation='softrelu'),
+            nn.Conv2D(64, (3, 3), activation='softrelu'),
+            nn.MaxPool2D((2, 2), strides=3),
             nn.Dense(32)
         )
         self.net.initialize(init=mx.init.Xavier(), ctx=gpu(0))
-        self.trainer = gluon.Trainer(self.net.collect_params(), 'adam', {'learning_rate': 1E-2})
+        self.trainer = gluon.Trainer(self.net.collect_params(), 'adam', {'learning_rate': 1E-3})
 
     def train_network(self, epochs=501):
         for epoch in range(1, epochs):
@@ -102,5 +90,3 @@ class Network:
                 test_acc / len(self.testdata), adjusted_test_acc / len(self.testdata), time.time() - tic))
             if epoch%10 == 0:
                 self.net.export(self.dir + "Nets\\Netnet", epoch=epoch)
-
-

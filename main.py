@@ -10,7 +10,7 @@ import CustomDataset as CD
 
 # Maximum image size
 image_size = 512
-batch_size = 8
+batch_size = 2
 root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
 image_dir = f"padded_images_{image_size}_white\\"
@@ -46,13 +46,13 @@ def train_setup():
 
     # Loads datasets
     train_dataset = CD.CustomDataset(root_dir, image_dir, label_json, image_size, image_size, transform=transformer)
-    # test_dataset = CD.CustomDataset(root_dir, test_dir, mirror_json, image_size, image_size, transform=transformer)
+    test_dataset = CD.CustomDataset(root_dir, test_dir, label_json, image_size, image_size, transform=transformer)
 
     traindata = mx.gluon.data.DataLoader(train_dataset, batch_size=batch_size)
-    # testdata = mx.gluon.data.DataLoader(test_dataset, batch_size=batch_size)
+    testdata = mx.gluon.data.DataLoader(test_dataset, batch_size=batch_size)
 
     l2 = loss.L2Loss()
-    net = train.Network(traindata, root_dir, l2, batch_size)
+    net = train.Network(traindata, root_dir, l2, batch_size, testdata)
     net.train_network()
 
 
