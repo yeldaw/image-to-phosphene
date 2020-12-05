@@ -2,7 +2,7 @@ import scipy.io as spio
 import os, json
 import numpy as np
 import copy
-
+import matplotlib.pyplot as plt
 
 def loadmat(filename):
     '''
@@ -198,13 +198,13 @@ def create_json(dic, directory, name):
 def load_json(directory, name):
     with open(os.path.join(directory, name), 'r') as infile:
         return json.load(infile)
-    infile
 
 
-def reverse_dic(dic, x, y):
+def reverse_dic(dic, directory):
     new_dic = copy.deepcopy(dic)
     for image in dic.keys():
         new_name = image.strip('.jpg')[::-1] + '.jpg'
+        img = plt.imread(directory + image)
         if new_name == image:
             new_name = new_name.strip('.jpg') + '-1.jpg'
         new_dic[new_name] = new_dic[image]
@@ -212,12 +212,12 @@ def reverse_dic(dic, x, y):
         for person in dic[image]:
             new_dic[new_name][person]['image_name'] = new_name
             annorect = new_dic[new_name][person]['annorect']
-            new_dic[new_name][person]['annorect'] = update_loc(annorect, x, y)
+            new_dic[new_name][person]['annorect'] = update_loc(annorect, img.shape[0], img.shape[1])
     dic.update(new_dic)
     # return new_dic
 
 
-def update_loc(annorect, x, y):
+def update_loc(annorect, y, x):
     if x > 0:
         annorect['x1'] = x - annorect['x1']
         annorect['x2'] = x - annorect['x2']

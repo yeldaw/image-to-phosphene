@@ -5,7 +5,7 @@ import train
 import matplotlib.pyplot as  plt
 
 
-def update_image(image, data, loc, reverse=False, shrink=False):
+def update_image(image, data, shrink=False):
     new_data = data[[i for i in data.keys()][0]]['annorect']
     joint_dict = new_data['annopoints']
     x_coords = [joint_dict[key]['x'] for key in joint_dict.keys()]
@@ -16,34 +16,31 @@ def update_image(image, data, loc, reverse=False, shrink=False):
         int(min(x_coords)),
         int(max(x_coords))
     ]
+    pad = [True if y1 >= 50 else False, True if y2 + 50 <= len(image) else False,
+               True if x1 >= 50 else False, True if x2 + 50 <= len(image[0]) else False]
     coords = [
-        y1 - 50 if y1 >= 50 else 0,
-        y2 + 50 if y2 + 50 <= len(image) else len(image),
-        x1 - 50 if x1 >= 50 else 0,
-        x2 + 50 if x2 + 50 <= len(image[0]) else len(image[0])
+        y1 - 50 if pad[0] else 0,
+        y2 + 50 if pad[1] else len(image),
+        x1 - 50 if pad[2] else 0,
+        x2 + 50 if pad[3] else len(image[0])
     ]
     # new_image = image[coords[0]:coords[1], coords[2]:coords[3]]
     # plt.imsave(loc, new_image)
-    new_data['annopoints'] = update_joints(joint_dict, coords[0], coords[1], coords[2], coords[3], reverse, shrink)
-    data[[i for i in data.keys()][0]]['annorect'] = update_head(new_data, coords[0], coords[2], reverse, shrink)
+    new_data['annopoints'] = update_joints(joint_dict, coords[0], coords[1], coords[2], coords[3], shrink)
+    data[[i for i in data.keys()][0]]['annorect'] = update_head(new_data, coords[0], coords[2], shrink)
     return data
 
 
-def update_joints(data, y1, y2, x1, x2, reverse, shrink):
-    if reverse:
-        for key in data.keys():
-            data[key]['x'] = y2 - data[key]['x']
-            data[key]['y'] = x2 - data[key]['y']
-    else:
-        for key in data.keys():
-            data[key]['x'] = data[key]['x'] - x1
-            data[key]['y'] = data[key]['y'] - y1
+def update_joints(data, y1, y2, x1, x2, shrink):
+    for key in data.keys():
+        data[key]['x'] = data[key]['x'] - x1
+        data[key]['y'] = data[key]['y'] - y1
     if shrink:
         rescale_joints(data)
     return data
 
 
-def update_head(data, y1, x1, reverse, shrink):
+def update_head(data, y1, x1, shrink):
     '''
     Head shrink, head reverse not implemented
     :param data:
@@ -93,7 +90,13 @@ def rescale_image(image, scale_value, image_dir, save_dir):
 
 
 def rescale_joints(data):
+    for key in data:
+        data[key]['x'] = int(data[key]['x']/2)
+        data[key]['y'] = int(data[key]['y']/2)
     return data
+
+
+# def reverse_joints(data):
 
 
 image_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
@@ -110,11 +113,16 @@ image_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 list_of_data = load_json(image_dir, 'mpii_singular.json')
 padding = 256
 
+new_list = copy.deepcopy(list_of_data)
 for key in list_of_data.keys():
-    list_of_data[key] = update_image(plt.imread(os.path.join(image_dir + f"cut_images_{padding}_white\\" + key)), list_of_data[key],
-              os.path.join(image_dir + "cut_images\\", key), reverse=False, shrink=True)
+    if key in os.listdir(f"{image_dir}cut_images_{padding}\\"):
+        new_list[key] = update_image(plt.imread(os.path.join(image_dir + f"cut_images\\" + key)),
+                                     list_of_data[key], shrink=True)
+    else:
+        del(new_list[key])
     # rescale_image(key, 50, image_dir + 'cut_images\\', image_dir + 'cut_images_256\\')
-create_json(list_of_data, image_dir, 'mpii_singular_updated_256.json')
+
+create_json(new_list, image_dir, 'mpii_256_shrunk.json')
 
 # padding = 256
 # list_of_data = load_json(image_dir, 'mpii_singular_updated.json')
@@ -124,3 +132,9 @@ create_json(list_of_data, image_dir, 'mpii_singular_updated_256.json')
 #     # if padded:
 #     #     train.display(image_dir + "padded_images\\", key, list_of_data[key])
 #     print(key)
+
+# list_of_data = load_json(image_dir, 'mpii_256_shrunk.json')
+#
+# for key in list_of_data:
+#     if key not in os.listdir(image_dir + "cut_images_256\\"):
+#         print(0)
