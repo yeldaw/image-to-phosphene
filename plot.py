@@ -43,7 +43,7 @@ def display(dir, name, data):
 
 
 def display_coords(img, coords):
-    if isinstance(coords, mx.nd.NDArray):
+    if isinstance(img, mx.nd.NDArray):
         img = img.asnumpy().transpose(1, 2, 0)
     if isinstance(coords, mx.nd.NDArray):
         coords = coords.asnumpy()
@@ -105,4 +105,3 @@ def plot_pred(img, coords):
                     linewidth=3.0, alpha=0.7, color=plt.cm.cool(cm_ind))
             ax.scatter(pts[jp, 0], pts[jp, 1], s=20)
     return ax
-

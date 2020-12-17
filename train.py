@@ -20,7 +20,7 @@ def plot_data(data, output, label):
 
 class Network:
 
-    def __init__(self, traindata, dir_, loss_, batch_size=64, testdata=[0]):
+    def __init__(self, traindata, dir_, loss_, batch_size=4, testdata=[0]):
         self.traindata = traindata
         self.dir = dir_
         self.loss_func = loss_
@@ -32,30 +32,48 @@ class Network:
         self.create_network()
 
     def create_network(self):
-        self.net = MySequential()
+        self.net = MySequential(9)
         self.net.hybridize(static_alloc=True, static_shape=True)
         self.net.add(
-            nn.Conv2D(16, (7, 7), activation='softrelu'),
+            # Initial
+            nn.Conv2D(8, (7, 7)),
+            nn.Conv2D(16, (5, 5)),
+            nn.Conv2D(32, (3, 3)),
+            nn.MaxPool2D((2, 2)),
+            nn.Conv2D(64, (3, 3)),
+            nn.Conv2D(32, (7, 7)),
+            nn.Conv2D(64, (5, 5)),
+            nn.Conv2D(32, (7, 7)),
+            nn.Conv2D(64, (3, 3)),
+
+            # First part of the hourglass
+            nn.Conv2D(16, (3, 3), activation='softrelu'),
             nn.Conv2D(32, (5, 5), activation='softrelu'),
             nn.MaxPool2D((2, 2)),
-            nn.Conv2D(64, (4, 4), activation='softrelu'),
+            nn.Conv2D(64, (3, 3), activation='softrelu'),
+            nn.Conv2D(128, (5, 5), activation='softrelu'),
             nn.MaxPool2D((3, 3)),
-            nn.MaxPool2D((2, 2)),
-            nn.Conv2D(64, (5, 5), activation='softrelu'),
+            # nn.MaxPool2D((2, 2)),
+            # nn.Conv2D(64, (4, 4), activation='softrelu'),
             # nn.MaxPool2D((2, 2)),
             # nn.Conv2D(64, (3, 3), activation='softrelu'),
+            # nn.Conv2D(64, (5, 5), activation='softrelu'),
             # nn.MaxPool2D((2, 2), strides=3),
+
+            #Second part of the hourglass
             # CB.UpSample(scale=3, sample_type='nearest'),
+            # nn.Conv2DTranspose(64, (5, 5)),
             # nn.Conv2DTranspose(64, (3, 3)),
             # CB.UpSample(scale=2, sample_type='nearest'),
-            nn.Conv2DTranspose(64, (5, 5)),
-            CB.UpSample(scale=2, sample_type='nearest'),
-            CB.UpSample(scale=3, sample_type='nearest'),
-            nn.Conv2DTranspose(32, (4, 4)),
+            # nn.Conv2DTranspose(64, (4, 4)),
+            # CB.UpSample(scale=2, sample_type='nearest'),
+            CB.UpSample(scale=3, sample_type='nearest' ),
+            nn.Conv2DTranspose(32, (5, 5)),
+            nn.Conv2DTranspose(16, (3, 3), activation='softrelu'),
             CB.UpSample(scale=2, sample_type='nearest'),
             nn.Conv2DTranspose(16, (5, 5), activation='softrelu'),
-            nn.Conv2DTranspose(3, (7, 7), activation='softrelu'),
-            nn.Dense(32)
+            nn.Conv2DTranspose(3, (3, 3), activation='softrelu'),
+            nn.Dense(16384)
         )
         self.net.initialize(init=mx.init.Xavier(), ctx=gpu(0))
         self.trainer = gluon.Trainer(self.net.collect_params(), 'adam', {'learning_rate': 1E-3})
@@ -69,6 +87,7 @@ class Network:
                 train_label = train_label.as_in_context(gpu(0))
                 with autograd.record():
                     train_output = self.net(train_data)
+                    train_output = train_output.reshape(16, 32, 32)
                     # train_output = self.net(train_data)
                     _loss = self.loss_func(train_output, train_label.astype('float32'))
                 _loss.backward()
