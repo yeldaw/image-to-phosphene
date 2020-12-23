@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def create_heatmap(x_loc, y_loc, x_size, y_size, num=1):
+def create_heatmap(x_loc, y_loc, x_size, y_size, num=5):
     # Initializing value of x-axis and y-axis
     # in the range -1 to 1
-    x, y = np.meshgrid(np.linspace(-num, num, x_size), np.linspace(-num, num, y_size))
+    x, y = np.meshgrid(np.linspace(0, num, x_size), np.linspace(-num, num, y_size))
 
     x = x + (x_size/2-x_loc)/(x_size/2) * num
     y = y + (y_size/2-y_loc)/(y_size/2) * num

@@ -4,7 +4,10 @@ from mxnet import gluon, autograd, gpu, nd
 from mxnet.gluon import nn
 import time
 import CustomBlocks as CB
-from MySequential import MySequential
+import MySequential as ms
+from mxnet.gluon import model_zoo
+import matplotlib.pyplot as plt
+
 
 def acc(output, label):
     # output: (batch, num_output) float32 ndarray
@@ -20,84 +23,44 @@ def plot_data(data, output, label):
 
 class Network:
 
-    def __init__(self, traindata, dir_, loss_, batch_size=4, testdata=[0]):
+    def __init__(self, traindata, dir_, batch_size=4, testdata=[0]):
         self.traindata = traindata
         self.dir = dir_
-        self.loss_func = loss_
         self.testdata = testdata
         self.batch_size = batch_size
         self.net = None
-        self.net_length = None
         self.trainer = None
         self.create_network()
 
     def create_network(self):
-        self.net = MySequential(9)
-        self.net.hybridize(static_alloc=True, static_shape=True)
-        self.net.add(
-            # Initial
-            nn.Conv2D(8, (7, 7)),
-            nn.Conv2D(16, (5, 5)),
-            nn.Conv2D(32, (3, 3)),
-            nn.MaxPool2D((2, 2)),
-            nn.Conv2D(64, (3, 3)),
-            nn.Conv2D(32, (7, 7)),
-            nn.Conv2D(64, (5, 5)),
-            nn.Conv2D(32, (7, 7)),
-            nn.Conv2D(64, (3, 3)),
-
-            # First part of the hourglass
-            nn.Conv2D(16, (3, 3), activation='softrelu'),
-            nn.Conv2D(32, (5, 5), activation='softrelu'),
-            nn.MaxPool2D((2, 2)),
-            nn.Conv2D(64, (3, 3), activation='softrelu'),
-            nn.Conv2D(128, (5, 5), activation='softrelu'),
-            nn.MaxPool2D((3, 3)),
-            # nn.MaxPool2D((2, 2)),
-            # nn.Conv2D(64, (4, 4), activation='softrelu'),
-            # nn.MaxPool2D((2, 2)),
-            # nn.Conv2D(64, (3, 3), activation='softrelu'),
-            # nn.Conv2D(64, (5, 5), activation='softrelu'),
-            # nn.MaxPool2D((2, 2), strides=3),
-
-            #Second part of the hourglass
-            # CB.UpSample(scale=3, sample_type='nearest'),
-            # nn.Conv2DTranspose(64, (5, 5)),
-            # nn.Conv2DTranspose(64, (3, 3)),
-            # CB.UpSample(scale=2, sample_type='nearest'),
-            # nn.Conv2DTranspose(64, (4, 4)),
-            # CB.UpSample(scale=2, sample_type='nearest'),
-            CB.UpSample(scale=3, sample_type='nearest' ),
-            nn.Conv2DTranspose(32, (5, 5)),
-            nn.Conv2DTranspose(16, (3, 3), activation='softrelu'),
-            CB.UpSample(scale=2, sample_type='nearest'),
-            nn.Conv2DTranspose(16, (5, 5), activation='softrelu'),
-            nn.Conv2DTranspose(3, (3, 3), activation='softrelu'),
-            nn.Dense(16384)
-        )
+        self.net = ms.MySequential(nstack=3)
+        # self.net = ms.MySequential(initial=16, output=1)
+        # self.net.hybridize(static_alloc=True, static_shape=True)
         self.net.initialize(init=mx.init.Xavier(), ctx=gpu(0))
-        self.trainer = gluon.Trainer(self.net.collect_params(), 'adam', {'learning_rate': 1E-3})
-        self.net_length = len(self.net)
+        self.trainer = gluon.Trainer(self.net.collect_params(), 'Adam', {'learning_rate': 1E-3})
 
-    def train_network(self, epochs=501):
+    def train_network(self, epochs=5001):
         for epoch in range(1, epochs):
             train_loss, train_acc, adjusted_train_acc, test_acc, adjusted_test_acc = 0., 0., 0., 0., 0.
             tic = time.time()
-            for train_data, train_label in self.traindata:
-                train_label = train_label.as_in_context(gpu(0))
+            for train_data, train_label, train_weight in self.traindata:
+                # train_label = train_label.as_in_context(gpu(0))
                 with autograd.record():
-                    train_output = self.net(train_data)
-                    train_output = train_output.reshape(16, 32, 32)
+                    hm_preds = self.net(train_data)
+                    _loss = self.net.calc_loss(hm_preds, train_label)
+                    # train_output = self.net(train_data)#.reshape(self.batch_size, 16, 1, 2)
+                    # train_output = train_output.reshape(self.batch_size, 16, 252, 252)
                     # train_output = self.net(train_data)
-                    _loss = self.loss_func(train_output, train_label.astype('float32'))
+                    # _loss = mx.nd.array([self.loss_func(train_output[i], train_label[i].astype('float32'), train_weight[i]) for i in range(len(train_output))])
+                    # _loss = self.loss_func(train_output, train_label.astype('float32'), train_weight)
                 _loss.backward()
                 # update parameters
                 self.trainer.step(self.batch_size)
                 # calculate training metrics
                 train_loss += _loss.mean().asscalar()
-                vals = acc(train_output, train_label)
-                train_acc += vals[0].asscalar()
-                adjusted_train_acc += vals[1].asscalar()
+                # vals = acc(train_output, train_label)
+                # train_acc += vals[0].asscalar()
+                # adjusted_train_acc += vals[1].asscalar()
                 mx.gpu(0).empty_cache()
                 mx.nd.waitall()
             # calculate validation accuracy
@@ -111,5 +74,5 @@ class Network:
             print(
                 f"Epoch {epoch}: loss {train_loss / len(self.traindata):.3f}, "
                 f"train acc {train_acc / len(self.traindata):.3f},  in {time.time() - tic:.3f} sec")
-            if epoch % 10 == 0:
-                self.net.export(self.dir + "Network_export\\Epoch", epoch=epoch)
+            # if epoch % 10 == 0:
+            #     self.net.export(self.dir + "Network_export\\Epoch", epoch=epoch)

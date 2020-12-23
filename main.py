@@ -3,14 +3,13 @@ import train
 import plot
 import matplotlib.pyplot as plt
 import mxnet as mx
-from mxnet.gluon import loss
 from mxnet.gluon.data.vision import transforms
 import CustomDataset as CD
 
 
 # Maximum image size
 image_size = 256
-batch_size = 1
+batch_size = 4
 root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
 image_dir = f"cut_images_{image_size}_white\\"
@@ -41,14 +40,15 @@ def train_setup():
     transformer = transforms.Compose([transforms.ToTensor()])
 
     # Loads datasets
-    train_dataset = CD.CustomDataset(root_dir, image_dir, label_json + "_extended.json", image_size, image_size, 32, 32, transform=transformer)
-    # test_dataset = CD.CustomDataset(root_dir, test_dir, label_json + ".json", image_size, image_size, transform=transformer)
+    train_dataset = CD.CustomDataset(root_dir, image_dir, label_json + "_extended.json",
+                                     image_size, image_size, 64, 64, transform=transformer)
+    # test_dataset = CD.CustomDataset(root_dir, test_dir, label_json + ".json",
+    # image_size, image_size, transform=transformer)
 
     traindata = mx.gluon.data.DataLoader(train_dataset, batch_size=batch_size)
     # testdata = mx.gluon.data.DataLoader(test_dataset, batch_size=batch_size)
 
-    loss_func = loss.L2Loss()
-    net = train.Network(traindata, root_dir, loss_func, batch_size)
+    net = train.Network(traindata, root_dir, batch_size)
     net.train_network()
 
 

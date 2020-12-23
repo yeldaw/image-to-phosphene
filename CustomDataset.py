@@ -82,6 +82,7 @@ def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=1):
 
 def grab_joints(dic):
     joints = []
+    visibility = []
     for gen_key in dic.keys():
         annorect = dic[gen_key]['annorect']
         # joints.append(annorect['x1']),
@@ -92,10 +93,11 @@ def grab_joints(dic):
         for joint in range(len(annopoints)):
             x = annopoints[str(joint)]['x']
             y = annopoints[str(joint)]['y']
-            # visible = annopoints[str(joint)]['is_visible']
-            # vis = visible if isinstance(visible, int) else 0
+            visible = annopoints[str(joint)]['is_visible']
+            vis = visible if isinstance(visible, int) else 0
             joints.extend((x, y))
-    return joints
+            visibility.append(vis)
+    return joints, visibility
 
 
 class CustomDataset(dataset.Dataset):
@@ -114,6 +116,7 @@ class CustomDataset(dataset.Dataset):
         self._data = None
         self._keys = None
         self._label = None
+        self._visibility = None
         self._new_labels = None
         root = os.path.expanduser(root)
         self._data_path = os.path.join(root, data_file)
@@ -122,19 +125,24 @@ class CustomDataset(dataset.Dataset):
 
     def __getitem__(self, idx):
         if self._transform is not None:
-            return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0))
+            return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1)
+            # return self._transform(nd.array(self._data[idx])), nd.array(self._label[idx])
         return nd.array(self._data[idx], dtype='uint8', ctx=gpu(0)), nd.array(self._label[idx], ctx=gpu(0))
+        # return nd.array(self._data[idx], dtype='uint8'), nd.array(self._label[idx])
 
     def __len__(self):
         return len(self._keys)
 
     def _get_data(self):
-        self._keys = os.listdir(self._data_path)[0:1]
+        self._keys = os.listdir(self._data_path)[0:1000]
         labels = []
+        visibility = []
         data_file = []
         for key in self._keys:
             data_file.append(plt.imread(self._data_path + key, self._flag))
-            labels.append(grab_joints(self._label_file[key]))
+            joints, visible = grab_joints(self._label_file[key])
+            labels.append(joints)
+            visibility.append(visible)
         self._data = np.array(data_file)
         heatmap_labels = []
         for label in labels:
@@ -143,4 +151,5 @@ class CustomDataset(dataset.Dataset):
                 points.append(create_heatmap(i * self.x_factor, j * self.y_factor, self.label_X, self.label_y, num=2))
             heatmap_labels.append(points)
         self._label = heatmap_labels
-
+        # self._label = labels
+        self._visibility = visibility
