@@ -12,9 +12,9 @@ image_size = 256
 batch_size = 4
 root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
-image_dir = f"cut_images_{image_size}_white\\"
+image_dir = f"full_256\\"
 test_dir = f"test_{image_size}\\"
-label_json = "mpii_256_shrunk"
+label_json = "mpii_full_256"
 modified_images_dir = ''
 
 
@@ -35,20 +35,19 @@ def modify_images():
         plt.imsave(root_dir + modified_images_dir + new_name, np.flip(np.flip(img, 1), 0))
 
 
-def train_setup():
+def train_setup(net=False):
     # Creates transformer
     transformer = transforms.Compose([transforms.ToTensor()])
 
     # Loads datasets
-    train_dataset = CD.CustomDataset(root_dir, image_dir, label_json + "_extended.json",
+    train_dataset = CD.CustomDataset(root_dir, image_dir, label_json + ".json",
                                      image_size, image_size, 64, 64, transform=transformer)
     # test_dataset = CD.CustomDataset(root_dir, test_dir, label_json + ".json",
     # image_size, image_size, transform=transformer)
 
-    traindata = mx.gluon.data.DataLoader(train_dataset, batch_size=batch_size)
     # testdata = mx.gluon.data.DataLoader(test_dataset, batch_size=batch_size)
 
-    net = train.Network(traindata, root_dir, batch_size)
+    net = train.Network(train_dataset, root_dir, batch_size, train_old_net=net, epoch="2600")
     net.train_network()
 
 
@@ -60,7 +59,7 @@ def test(dic, k1):
     plot.display_coords(plt.imread(root_dir + image_dir + k2), b)
 
 
-train_setup()
+train_setup(True)
 # modify_json()
 
 

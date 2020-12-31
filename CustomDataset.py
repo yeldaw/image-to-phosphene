@@ -58,26 +58,36 @@ def load_dataset(batch_size=10):
     # return traindata
 
 
-def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=1):
-    # Initializing value of x-axis and y-axis
-    # in the range -1 to 1
-    x, y = np.meshgrid(np.linspace(-num, num, x_size), np.linspace(-num, num, y_size))
+# def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=1):
+#     # Initializing value of x-axis and y-axis
+#     # in the range -1 to 1
+#     x, y = np.meshgrid(np.linspace(-num, num, x_size), np.linspace(-num, num, y_size))
+#
+#     x = (x + (x_size/2-x_loc)/(x_size/2) * num)
+#     y = (y + (y_size/2-y_loc)/(y_size/2) * num)
+#
+#
+#     # print(-(x_size-x_loc)/x_size)
+#     # print(-(y_size-y_loc)/y_size)
+#
+#     dst = np.sqrt(x * x + y * y)
+#     # Intializing sigma and muu
+#     sigma = 1
+#     muu = 0.000
+#
+#     # Calculating Gaussian array
+#     gauss = np.exp(-((dst - muu) ** 2 / (2.0 * sigma ** 2)))
+#     return gauss
 
-    x = (x + (x_size/2-x_loc)/(x_size/2) * num)
-    y = (y + (y_size/2-y_loc)/(y_size/2) * num)
 
-
-    # print(-(x_size-x_loc)/x_size)
-    # print(-(y_size-y_loc)/y_size)
-
-    dst = np.sqrt(x * x + y * y)
-    # Intializing sigma and muu
-    sigma = 1
-    muu = 0.000
-
-    # Calculating Gaussian array
-    gauss = np.exp(-((dst - muu) ** 2 / (2.0 * sigma ** 2)))
-    return gauss
+def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=5):
+    heatmap = np.zeros((x_size, y_size))
+    chance = 1/(num**2)
+    for i in range(-num, num + 1):
+        for j in range(-num, num + 1):
+            if x_size > int(x_loc + i) >= 0 and y_size > int(y_loc + j) >= 0:
+                heatmap[int(x_loc + i)][int(y_loc + j)] = (num - abs(i)) * (num - abs(j)) * chance * 1000
+    return heatmap
 
 
 def grab_joints(dic):
@@ -103,7 +113,7 @@ def grab_joints(dic):
 class CustomDataset(dataset.Dataset):
     """Proper class for custom datasets"""
 
-    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None):
+    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None, multiplier=10):
         super(CustomDataset, self).__init__()
         self._transform = transform
         self.dim_x = X
@@ -121,7 +131,9 @@ class CustomDataset(dataset.Dataset):
         root = os.path.expanduser(root)
         self._data_path = os.path.join(root, data_file)
         self._label_file = load_json(root, label_file)
-        self._get_data()
+        self.counter = 0
+        self.multiplier = multiplier
+        self.get_data()
 
     def __getitem__(self, idx):
         if self._transform is not None:
@@ -133,8 +145,8 @@ class CustomDataset(dataset.Dataset):
     def __len__(self):
         return len(self._keys)
 
-    def _get_data(self):
-        self._keys = os.listdir(self._data_path)[0:1000]
+    def get_data(self, update=False):
+        self._keys = os.listdir(self._data_path)[self.counter * self.multiplier:(self.counter + 1) * self.multiplier]
         labels = []
         visibility = []
         data_file = []
@@ -148,8 +160,12 @@ class CustomDataset(dataset.Dataset):
         for label in labels:
             points = []
             for i, j in zip(label[0::2], label[1::2]):
-                points.append(create_heatmap(i * self.x_factor, j * self.y_factor, self.label_X, self.label_y, num=2))
+                points.append(create_heatmap(i * self.x_factor, j * self.y_factor, self.label_X, self.label_y, num=8))
             heatmap_labels.append(points)
         self._label = heatmap_labels
         # self._label = labels
         self._visibility = visibility
+        if (self.counter + 1) * self.multiplier > len(os.listdir(self._data_path)):
+            self.counter = 0
+        else:
+            self.counter += 1

@@ -3,6 +3,7 @@ import mxnet.symbol as sym
 from mxnet.ndarray import Concat
 from mxnet import nd
 
+
 class BatchNormCudnnOff(nn.BatchNorm):
     """Batch normalization layer without CUDNN. It is a temporary solution.
 
@@ -198,16 +199,47 @@ class MySequential(nn.HybridBlock):
             comb_preds.append(preds)
             if i != self.nstack - 1:
                 x = x + self.merge_preds[i](preds) + self.merge_features[i](feature)
-        return Concat(*comb_preds, dim=1)
+        return sym.Concat(*comb_preds, dim=1)
 
-    def calc_loss(self, comb_preds, heatmaps):
+    def calc_loss(self, comb_preds, heatmaps, weights):
         if not isinstance(comb_preds, list):
             comb_preds = [comb_preds]
         combined_loss = []
         for i in range(self.nstack):
-            combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16], heatmaps))
+            combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16] * weights, heatmaps * weights))
         combined_loss = Concat(*combined_loss, dim=0)
         return combined_loss
 
     def __len__(self):
         return len(self._children)
+
+    def load_parameters(self, filename, ctx=None, allow_missing=False,
+                        ignore_extra=False, cast_dtype=False, dtype_source='current'):
+        loaded = nd.load(filename)
+        params = self._collect_params_with_prefix()
+        if not loaded and not params:
+            return
+
+        # if not any('.' in i for i in loaded.keys()):
+        #     legacy loading
+            # del loaded
+            # self.collect_params().load(
+            #     filename, ctx, allow_missing, ignore_extra, self.prefix,
+            #     cast_dtype=cast_dtype, dtype_source=dtype_source)
+            # return
+
+        # if not allow_missing:
+        #     for name in params.keys():
+        #         assert name in loaded, \
+        #             "Parameter '%s' is missing in file '%s', which contains parameters: %s. " \
+        #             "Set allow_missing=True to ignore missing parameters."%(
+        #                 name, filename, _brief_print_list(loaded.keys()))
+        for name in loaded:
+            b = False
+            for name2 in params:
+                if params[name2].name == name.split(":")[1]:
+                    params[name2]._load_init(loaded[name], ctx, cast_dtype=cast_dtype, dtype_source=dtype_source)
+                    b = True
+            if b == False:
+                print(0)
+        print(0)
