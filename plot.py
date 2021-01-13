@@ -1,10 +1,10 @@
+from matplotlib import pyplot as plt
 import mxnet as mx
 import numpy as np
-from mxnet.gluon import nn
-import os
 from gluoncv import utils
+import numpy as np
+
 mx.random.seed(50)
-from matplotlib import pyplot as plt
 
 
 def display(dir, name, data):
@@ -35,7 +35,7 @@ def display(dir, name, data):
                 annorect['annopoints'][f'{joint_keys}']['is_visible']
             )
     joints = np.reshape(joints, (1, 16, 2))
-    confidence = np.array([0.5 for i in range(16)]).reshape((1, 16, 1))
+    confidence = np.array([0.5 for _ in range(16)]).reshape((1, 16, 1))
     labels = np.array(labels)
     names = [f'Person {i}' for i in range(len(labels))]
     ax = plot_keypoints(img, joints, confidence, labels, names)
@@ -56,6 +56,24 @@ def display_coords(img, coords):
     ax.plot()
 
 
+def display_triplet(img, coords):
+    if isinstance(img, mx.nd.NDArray):
+        img = img.asnumpy().transpose(1, 2, 0)
+    if isinstance(coords, mx.nd.NDArray):
+        coords = coords.asnumpy()
+    joints = np.zeros((48, 2))
+    for i in range(int(len(coords)/6)):
+        joints[i][0] = coords[i * 6]
+        joints[i][1] = coords[i * 6 + 1]
+        joints[i][2] = coords[i * 6 + 2]
+        joints[i][3] = coords[i * 6 + 3]
+        joints[i][4] = coords[i * 6 + 4]
+        joints[i][5] = coords[i * 6 + 5]
+    joints = np.reshape(joints, (1, 16, 6))
+    ax = plot_pred(img, joints)
+    ax.plot()
+
+
 def plot_keypoints(img, coords, confidence, labels, class_names, keypoint_thresh=0.2):
 
     import matplotlib.pyplot as plt
@@ -72,7 +90,7 @@ def plot_keypoints(img, coords, confidence, labels, class_names, keypoint_thresh
                    [10, 11], [11, 12], [15, 14],
                    [14, 13], [13, 8], [14, 8]]
     names = [f'Person {i}' for i in range(len(labels))]
-    ax = utils.viz.plot_bbox(img, [], class_names = names)
+    ax = utils.viz.plot_bbox(img, [], class_names=names)
 
     colormap_index = np.linspace(0, 1, len(joint_pairs))
     for i in range(coords.shape[0]):
@@ -105,3 +123,18 @@ def plot_pred(img, coords):
                     linewidth=3.0, alpha=0.7, color=plt.cm.cool(cm_ind))
             ax.scatter(pts[jp, 0], pts[jp, 1], s=20)
     return ax
+
+
+def get_coords(coords, n=0):
+    if not isinstance(coords, np.ndarray):
+        coords = coords.asnumpy()
+    best_joints = []
+    for i in range(16):
+        best = np.where(coords[n * 16: (n + 1) * 16][i] == np.amax(coords[n * 16: (n + 1) * 16][i]))
+        best_joints.extend([best[1][0], best[0][0]])
+    return best_joints
+
+
+def get_and_plot(img, heatmap, n=0):
+    joints = np.array(get_coords(heatmap, n))
+    display_coords(img, joints * 4)
