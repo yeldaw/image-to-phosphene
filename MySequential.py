@@ -177,6 +177,8 @@ class MySequential(nn.HybridBlock):
         self.preds = nn.HybridSequential()
         self.preds.add(*[nn.Conv2D(output_dim, (1, 1)) for n in range(nstack)])
 
+        # self.sigmoid = nn.Activation('sigmoid')
+
         self.merge_preds = nn.HybridSequential()
         self.merge_preds.add(*[nn.Conv2D(input_dim, (1, 1)) for n in range(nstack-1)])
         self.merge_features = nn.HybridSequential()
@@ -206,7 +208,8 @@ class MySequential(nn.HybridBlock):
             comb_preds = [comb_preds]
         combined_loss = []
         for i in range(self.nstack):
-            combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16] * weights, heatmaps * weights))
+            combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16], heatmaps))
+            # combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16] * weights, heatmaps * weights))
         combined_loss = Concat(*combined_loss, dim=0)
         return combined_loss
 
@@ -220,20 +223,6 @@ class MySequential(nn.HybridBlock):
         if not loaded and not params:
             return
 
-        # if not any('.' in i for i in loaded.keys()):
-        #     legacy loading
-            # del loaded
-            # self.collect_params().load(
-            #     filename, ctx, allow_missing, ignore_extra, self.prefix,
-            #     cast_dtype=cast_dtype, dtype_source=dtype_source)
-            # return
-
-        # if not allow_missing:
-        #     for name in params.keys():
-        #         assert name in loaded, \
-        #             "Parameter '%s' is missing in file '%s', which contains parameters: %s. " \
-        #             "Set allow_missing=True to ignore missing parameters."%(
-        #                 name, filename, _brief_print_list(loaded.keys()))
         for name in loaded:
             b = False
             for name2 in params:

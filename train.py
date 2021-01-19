@@ -6,6 +6,7 @@ import MySequential as ms
 from mxnet.gluon import nn
 import warnings
 
+
 def acc(output, label):
     # output: (batch, num_output) float32 ndarray
     # label: (batch, ) int32 ndarray
@@ -43,7 +44,7 @@ class Network:
 
     def load_network(self, epoch):
         self.net = ms.MySequential(nstack=8)
-        self.net.load_parameters(self.dir + f"Network_export\\8-pyr-no-weight-sigmoid-output-{epoch}.params", ctx=gpu(0))
+        self.net.load_parameters(self.dir + f"Network_export\\Triplet-test-{epoch}.params", ctx=gpu(0))
         # with warnings.catch_warnings():
         #     warnings.simplefilter("ignore")
         #     self.net = nn.SymbolBlock.imports(self.dir + "Network_export\\Epoch_8_stack_no_weights-symbol.json", ['data'],
@@ -51,7 +52,7 @@ class Network:
         self.net.hybridize(static_alloc=True, static_shape=True)
 
     def create_trainer(self):
-        schedule = mx.lr_scheduler.MultiFactorScheduler(step=[250, 500, 750, 1000, 1250, 1500, 1750, 2000], factor=0.5)
+        schedule = mx.lr_scheduler.MultiFactorScheduler(step=[250, 500, 750], factor=0.5)
         schedule.base_lr = 1
         optimizer = mx.optimizer.Adam(lr_scheduler=schedule)
         self.trainer = gluon.Trainer(self.net.collect_params(), optimizer)
@@ -93,8 +94,8 @@ class Network:
             print(
                 f"Epoch {epoch}: loss {train_loss / len(self.traindata):.3f}, "
                 f"train acc {train_acc / len(self.traindata):.3f},  in {time.time() - tic:.3f} sec")
-            if epoch % 100 == 0:
-                self.net.export(self.dir + "Network_export\\8-pyr-no-weight-sigmoid-output", epoch=epoch)
-            if epoch % 10 == 0:
+            if epoch % 20 == 0:
+                self.net.export(self.dir + "Network_export\\Triplet-test", epoch=epoch)
+            if epoch % 5 == 0:
                 self.train_dataset.get_data()
                 self.traindata = mx.gluon.data.DataLoader(self.train_dataset, batch_size=self.batch_size)

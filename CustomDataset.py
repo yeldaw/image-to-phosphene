@@ -81,20 +81,20 @@ def load_dataset(batch_size=10):
 #     return gauss
 
 
-def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, intensity=1, sigma=2):
-    heatmap = np.zeros((x_size, y_size))
-    heatmap[int(y_loc), int(x_loc)] = intensity  # EDIT: Klopt dit wel, qua x en y coordinaten? Meestal is andersom toch?
-    return gaussian_filter(heatmap, sigma=sigma)
-
-
-# def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=5):
+# def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, intensity=1, sigma=2):
 #     heatmap = np.zeros((x_size, y_size))
-#     chance = 1/(num**2)
-#     for i in range(-num, num + 1):
-#         for j in range(-num, num + 1):
-#             if x_size > int(x_loc + i) >= 0 and y_size > int(y_loc + j) >= 0:
-#                 heatmap[int(y_loc + i)][int(x_loc + j)] = (num - abs(i)) * (num - abs(j)) * chance * 1000
-#     return heatmap
+#     heatmap[int(y_loc), int(x_loc)] = intensity  # EDIT: Klopt dit wel, qua x en y coordinaten? Meestal is andersom toch?
+#     return gaussian_filter(heatmap, sigma=sigma)
+
+
+def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=5):
+    heatmap = np.zeros((x_size, y_size))
+    chance = 1/(num**2)
+    for i in range(-num, num + 1):
+        for j in range(-num, num + 1):
+            if x_size > int(x_loc + j) >= 0 and y_size > int(y_loc + i) >= 0:
+                heatmap[int(y_loc + i)][int(x_loc + j)] = (num - abs(i)) * (num - abs(j)) * chance * 1000
+    return heatmap
 
 
 def grab_joints(dic):
@@ -129,7 +129,7 @@ def grab_triplet(dic):
 class CustomDataset(dataset.Dataset):
     """Proper class for custom datasets"""
 
-    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None, multiplier=2500,
+    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None, multiplier=1000,
                  triplet_file=False):
         super(CustomDataset, self).__init__()
         self._transform = transform
@@ -157,12 +157,12 @@ class CustomDataset(dataset.Dataset):
 
     def __getitem__(self, idx):
         if self._transform is not None:
-            if self.triplet:
-                return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
-                   nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1), nd.array(self._triplet[idx], ctx=gpu(0))
-            else:
-                return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
-                       nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1)
+            # if self.triplet:
+            #     return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
+            #        nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1), nd.array(self._triplet[idx], ctx=gpu(0))
+
+            return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
+                   nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1)
             # return self._transform(nd.array(self._data[idx])), nd.array(self._label[idx])
         return nd.array(self._data[idx], dtype='uint8', ctx=gpu(0)), nd.array(self._label[idx], ctx=gpu(0))
         # return nd.array(self._data[idx], dtype='uint8'), nd.array(self._label[idx])
@@ -171,17 +171,17 @@ class CustomDataset(dataset.Dataset):
         return len(self._keys)
 
     def get_data(self, update=False):
-        # self._keys = os.listdir(self._data_path)[self.counter * self.multiplier:(self.counter + 1) * self.multiplier]
-        self._keys = os.listdir(self._data_path)[0:10]
+        self._keys = os.listdir(self._data_path)[self.counter * self.multiplier:(self.counter + 1) * self.multiplier]
+        # self._keys = os.listdir(self._data_path)[0:10]
         labels = []
         visibility = []
         data_file = []
-        triplets = []
+        # triplets = []
         for key in self._keys:
             data_file.append(plt.imread(self._data_path + key, self._flag))
             joints, visible = grab_joints(self._label_file[key])
             labels.append(joints)
-            triplets.append(grab_triplet(self._triplet_file[key]))
+            # triplets.append(grab_triplet(self._triplet_file[key]))
             visibility.append(visible)
         self._data = np.array(data_file)
         heatmap_labels = []

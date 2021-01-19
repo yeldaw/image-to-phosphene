@@ -70,7 +70,7 @@ def display_triplet(img, coords):
         joints[i][4] = coords[i * 6 + 4]
         joints[i][5] = coords[i * 6 + 5]
     joints = np.reshape(joints, (1, 16, 6))
-    ax = plot_pred(img, joints)
+    ax = plot_trip(img, joints)
     ax.plot()
 
 
@@ -105,6 +105,27 @@ def plot_keypoints(img, coords, confidence, labels, class_names, keypoint_thresh
 
 
 def plot_pred(img, coords):
+    if isinstance(coords, mx.nd.NDArray):
+        coords = coords.asnumpy()
+    joint_pairs = [[0, 1], [1, 2], [2, 3], [2, 6],
+                   [5, 4], [4, 3], [3, 6],
+                   [6, 7], [7, 8], [8, 9],
+                   [10, 11], [11, 12], [15, 14],
+                   [14, 13], [13, 8], [12, 8]]
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    plt.imshow(img)
+    colormap_index = np.linspace(0, 1, len(joint_pairs))
+    for i in range(coords.shape[0]):
+        pts = coords[i]
+        for cm_ind, jp in zip(colormap_index, joint_pairs):
+            ax.plot(pts[jp, 0], pts[jp, 1],
+                    linewidth=3.0, alpha=0.7, color=plt.cm.cool(cm_ind))
+            ax.scatter(pts[jp, 0], pts[jp, 1], s=20)
+    return ax
+
+
+def plot_trip(img, coords):
     if isinstance(coords, mx.nd.NDArray):
         coords = coords.asnumpy()
     joint_pairs = [[0, 1], [1, 2], [2, 3], [2, 6],

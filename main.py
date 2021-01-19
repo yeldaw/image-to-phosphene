@@ -13,13 +13,18 @@ batch_size = 4
 root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
 
 image_dir = f"full_256\\"
-test_dir = f"test_{image_size}\\"
+# image_dir = f"cut_images_{image_size}_white\\"
+# image_dir = f"images\\"
+#
+# test_dir = f"test_{image_size}\\"
 label_json = "mpii_full_256"
+# label_json = "mpii_256_shrunk_extended"
+# label_json = "mpii_singular"
 modified_images_dir = ''
 
 
 def modify_json():
-    original = load_json(root_dir, label_json + "_rev.json")
+    original = load_json(root_dir, label_json + ".json")
     new = reverse_dic(original)
     with open(os.path.join(root_dir, label_json + "_rev2.json"), 'w+') as infile:
         json.dump(new, infile)
