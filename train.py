@@ -3,6 +3,7 @@ import mxnet as mx
 from mxnet import gluon, autograd, gpu
 import time
 import MySequential as ms
+import mxnet.ndarray as nd
 from mxnet.gluon import nn
 import warnings
 
@@ -21,7 +22,7 @@ def plot_data(data, output, label):
 
 class Network:
 
-    def __init__(self, train_dataset, dir_, batch_size=4, testdata=[0], train_old_net=False, epoch=1):
+    def __init__(self, train_dataset, dir_, batch_size=4, testdata=[0], train_old_net=False, epoch=1, triplet=False):
         self.train_dataset = train_dataset
         self.traindata = mx.gluon.data.DataLoader(self.train_dataset, batch_size=batch_size)
         self.dir = dir_
@@ -29,22 +30,33 @@ class Network:
         self.batch_size = batch_size
         self.net = None
         self.trainer = None
+        self.triplet = triplet
         if train_old_net:
             self.load_network(epoch)
             self.epoch = epoch
         else:
             self.create_network()
-            self.epoch = 1
+            self.epoch = 0
         self.create_trainer()
 
     def create_network(self):
-        self.net = ms.MySequential(nstack=8)
+        if self.triplet:
+            self.net = ms.MySequential(output_dim=26, nstack=4, triplet=self.triplet)
+        else:
+            self.net = ms.MySequential(nstack=8, triplet=self.triplet)
         self.net.hybridize(static_alloc=True, static_shape=True)
         self.net.initialize(init=mx.init.Xavier(), ctx=gpu(0))
 
     def load_network(self, epoch):
-        self.net = ms.MySequential(nstack=8)
-        self.net.load_parameters(self.dir + f"Network_export\\Triplet-test-{epoch}.params", ctx=gpu(0))
+        if self.triplet:
+            self.net = ms.MySequential(output_dim=26, nstack=4, triplet=self.triplet)
+            # self.net.load_parameters(self.dir + f"Network_export\\Triplet-test-{epoch}.params", ctx=gpu(0))
+
+        else:
+            self.net = ms.MySequential(nstack=8, triplet=self.triplet)
+        # self.net.load_parameters(self.dir + f"Network_export\\Triplet-test-{epoch}.params", ctx=gpu(0))
+        self.net.load_parameters(self.dir + f"Final_export\\Final_joint-{epoch}.params", ctx=gpu(0))
+
         # with warnings.catch_warnings():
         #     warnings.simplefilter("ignore")
         #     self.net = nn.SymbolBlock.imports(self.dir + "Network_export\\Epoch_8_stack_no_weights-symbol.json", ['data'],
@@ -52,7 +64,7 @@ class Network:
         self.net.hybridize(static_alloc=True, static_shape=True)
 
     def create_trainer(self):
-        schedule = mx.lr_scheduler.MultiFactorScheduler(step=[250, 500, 750], factor=0.5)
+        schedule = mx.lr_scheduler.MultiFactorScheduler(step=[500, 1000, 2000, 5000], factor=0.5)
         schedule.base_lr = 1
         optimizer = mx.optimizer.Adam(lr_scheduler=schedule)
         self.trainer = gluon.Trainer(self.net.collect_params(), optimizer)
@@ -67,13 +79,7 @@ class Network:
                     hm_preds = self.net(train_data)
                     # a = plot.get_coords(hm_preds[0])
                     _loss = self.net.calc_loss(hm_preds, train_label, train_weight)
-                    # train_output = self.net(train_data)#.reshape(self.batch_size, 16, 1, 2)
-                    # train_output = train_output.reshape(self.batch_size, 16, 252, 252)
-                    # train_output = self.net(train_data)
-                    # _loss = mx.nd.array([self.loss_func(train_output[i], train_label[i].astype('float32'), train_weight[i]) for i in range(len(train_output))])
-                    # _loss = self.loss_func(train_output, train_label.astype('float32'), train_weight)
                 _loss.backward()
-                # Do I reshape the loss to (nstack, batch_size)? Or leave it as nstack * batch_size
                 # update parameters
                 self.trainer.step(self.batch_size)
                 # calculate training metrics
@@ -94,8 +100,32 @@ class Network:
             print(
                 f"Epoch {epoch}: loss {train_loss / len(self.traindata):.3f}, "
                 f"train acc {train_acc / len(self.traindata):.3f},  in {time.time() - tic:.3f} sec")
-            if epoch % 20 == 0:
+            # if epoch % 20 == 0:
+            #     self.net.export(self.dir + "Final_export\\Final_joint", epoch=epoch)
+            self.train_dataset.get_data()
+            # self.traindata = mx.gluon.data.DataLoader(self.train_dataset, batch_size=self.batch_size)
+
+    def train_triplet(self, epochs=5001):
+        for epoch in range(int(self.epoch) + 1, epochs):
+            train_loss, train_acc, adjusted_train_acc, test_acc, adjusted_test_acc = 0., 0., 0., 0., 0.
+            tic = time.time()
+            for train_data, train_label, train_weight, triplet_data in self.traindata:
+                with autograd.record():
+                    triplet_maps = nd.Concat(train_data, train_label)
+                    hm_preds = self.net(triplet_maps)
+                    _loss = self.net.calc_triplet_loss(hm_preds, triplet_data)
+                _loss.backward()
+                self.trainer.step(self.batch_size)
+                train_loss += _loss.mean().asscalar()
+                mx.gpu(0).empty_cache()
+                mx.nd.waitall()
+            print(
+                f"Epoch {epoch}: loss {train_loss / len(self.traindata):.3f}, "
+                f"train acc {train_acc / len(self.traindata):.3f},  in {time.time() - tic:.3f} sec")
+            if epoch % 50 == 0:
                 self.net.export(self.dir + "Network_export\\Triplet-test", epoch=epoch)
-            if epoch % 5 == 0:
-                self.train_dataset.get_data()
-                self.traindata = mx.gluon.data.DataLoader(self.train_dataset, batch_size=self.batch_size)
+            self.train_dataset.get_data()
+            # if epoch % 5 == 0:
+            #     self.train_dataset.get_triplet()
+            #     self.traindata = mx.gluon.data.DataLoader(self.train_dataset, batch_size=self.batch_size)
+

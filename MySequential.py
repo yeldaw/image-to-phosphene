@@ -2,7 +2,7 @@ from mxnet.gluon import nn, loss
 import mxnet.symbol as sym
 from mxnet.ndarray import Concat
 from mxnet import nd
-
+import plot
 
 class BatchNormCudnnOff(nn.BatchNorm):
     """Batch normalization layer without CUDNN. It is a temporary solution.
@@ -100,11 +100,11 @@ class Initial(nn.HybridBlock):
 
     def __init__(self, input_dim, prefix=None, params=None):
         super(Initial, self).__init__(prefix=prefix, params=params)
-        self.conv1 = Conv(64, kernel_size=7, strides=2, bn=True, relu=True)
-        self.res1 = Residual(64, 128)
+        self.conv1 = Conv(int(input_dim/4), kernel_size=7, strides=2, bn=True, relu=True)
+        self.res1 = Residual(int(input_dim/4), int(input_dim/2))
         self.maxp1 = nn.MaxPool2D(2, 2)
-        self.res2 = Residual(128, 128)
-        self.res3 = Residual(128, input_dim)
+        self.res2 = Residual(int(input_dim/2), int(input_dim/2))
+        self.res3 = Residual(int(input_dim/2), input_dim)
 
     def hybrid_forward(self, F, x):
         x = self.conv1(x)
@@ -163,21 +163,19 @@ class HeatmapLoss(nn.HybridBlock):
 
 
 class MySequential(nn.HybridBlock):
-    def __init__(self, input_dim=256, output_dim=16, nstack=1, prefix=None, params=None):
+    def __init__(self, input_dim=256, output_dim=16, nstack=1, prefix=None, triplet=False, params=None):
         super(MySequential, self).__init__(prefix=prefix, params=params)
         self.nstack = nstack
         self.initial = Initial(input_dim)
-
+        self.triplet = triplet
         self.hg = nn.HybridSequential()
         self.hg.add(*[Hourglass(4, input_dim) for n in range(nstack)])
-
+        # self.useless = nn.Conv2D(16, (1, 1))
         self.feature = nn.HybridSequential()
         self.feature.add(*[Features(input_dim, bn=True, relu=True) for n in range(nstack)])
 
         self.preds = nn.HybridSequential()
         self.preds.add(*[nn.Conv2D(output_dim, (1, 1)) for n in range(nstack)])
-
-        # self.sigmoid = nn.Activation('sigmoid')
 
         self.merge_preds = nn.HybridSequential()
         self.merge_preds.add(*[nn.Conv2D(input_dim, (1, 1)) for n in range(nstack-1)])
@@ -193,6 +191,7 @@ class MySequential(nn.HybridBlock):
 
     def hybrid_forward(self, F, x):
         x = self.initial(x)
+        # x2 = self.useless(x2)
         comb_preds = []
         for i in range(0, self.nstack):
             hg = self.hg[i](x)
@@ -210,6 +209,18 @@ class MySequential(nn.HybridBlock):
         for i in range(self.nstack):
             combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16], heatmaps))
             # combined_loss.append(self.loss_func(comb_preds[0][:, i * 16: (i + 1) * 16] * weights, heatmaps * weights))
+        combined_loss = Concat(*combined_loss, dim=0)
+        return combined_loss
+
+    def calc_triplet_loss(self, comb_preds, heatmaps):
+        # weights = []
+        # for img in heatmaps:
+        #     weights.append(plot.get_coords(img))
+        if not isinstance(comb_preds, list):
+            comb_preds = [comb_preds]
+        combined_loss = []
+        for i in range(self.nstack):
+            combined_loss.append(self.loss_func(comb_preds[0][:, i * 26: (i + 1) * 26], heatmaps))
         combined_loss = Concat(*combined_loss, dim=0)
         return combined_loss
 

@@ -1,7 +1,7 @@
 """Dataset container."""
 __all__ = ['CustomDataset']
 
-import os
+import os, random
 import numpy as np
 import mxnet.gluon.data.vision.datasets as datasets
 from mxnet.gluon.data import dataset
@@ -89,7 +89,7 @@ def load_dataset(batch_size=10):
 
 def create_heatmap(x_loc, y_loc, x_size=64, y_size=64, num=5):
     heatmap = np.zeros((x_size, y_size))
-    chance = 1/(num**2)
+    chance = 1 / (num ** 2)
     for i in range(-num, num + 1):
         for j in range(-num, num + 1):
             if x_size > int(x_loc + j) >= 0 and y_size > int(y_loc + i) >= 0:
@@ -102,10 +102,6 @@ def grab_joints(dic):
     visibility = []
     for gen_key in dic.keys():
         annorect = dic[gen_key]['annorect']
-        # joints.append(annorect['x1']),
-        # joints.append(annorect['x2']),
-        # joints.append(annorect['y1']),
-        # joints.append(annorect['y2'])
         annopoints = annorect['annopoints']
         for joint in range(len(annopoints)):
             x = annopoints[str(joint)]['x']
@@ -118,82 +114,155 @@ def grab_joints(dic):
 
 
 def grab_triplet(dic):
+    joint_ids = {
+         '0': 'medial_right_ankle',
+         '1': 'lateral_right_ankle',
+         '2': 'medial_right_knee',
+         '3': 'lateral_right_knee',
+         '4': 'medial_right_hip',
+         '5': 'lateral_right_hip',
+         '6': 'medial_left_hip',
+         '7': 'lateral_left_hip',
+         '8': 'medial_left_knee',
+         '9': 'lateral_left_knee',
+         '10': 'medial_left_ankle',
+         '11': 'lateral_left_ankle',
+         '12': 'right_neck',
+         '13': 'left_neck',
+         '14': 'medial_right_wrist',
+         '15': 'lateral_right_wrist',
+         '16': 'medial_right_bow',
+         '17': 'lateral_right_bow',
+         '18': 'medial_right_shoulder',
+         '19': 'lateral_right_shoulder',
+         '20': 'medial_left_shoulder',
+         '21': 'lateral_left_shoulder',
+         '22': 'medial_left_bow',
+         '23': 'lateral_left_bow',
+         '24': 'medial_left_wrist',
+         '25': 'lateral_left_wrist',
+    }
     joints = []
-    for key in dic.keys():
-        x = dic[key]['x']
-        y = dic[key]['y']
+    for key in joint_ids:
+        id = joint_ids[key]
+        x = dic[id]['x']
+        y = dic[id]['y']
         joints.extend((x, y))
     return joints
+
+
+def make_heatmap(list_of_data, x, y, size=64):
+    heatmaps = []
+    for i, j in zip(list_of_data[0::2], list_of_data[1::2]):
+        heatmaps.append(create_heatmap(i * x, j * y, x_size=size, y_size=size))
+    return heatmaps
 
 
 class CustomDataset(dataset.Dataset):
     """Proper class for custom datasets"""
 
-    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None, multiplier=1000,
-                 triplet_file=False):
+    def __init__(self, root, data_file, label_file, X, y, label_X, label_y, flag=0, transform=None, multiplier=500,
+                 triplet_file=None):
         super(CustomDataset, self).__init__()
         self._transform = transform
         self.dim_x = X
         self.dim_y = y
         self.label_X = label_X
         self.label_y = label_y
-        self.x_factor = label_X/self.dim_x
-        self.y_factor = label_y/self.dim_y
+        self.x_factor = label_X / self.dim_x
+        self.y_factor = label_y / self.dim_y
         self._flag = flag
         self._data = None
         self._keys = None
         self._label = None
+        self._triplets = None
         self._visibility = None
-        self.triplet = None
-        if triplet_file:
-            self._triplet_file = load_json(root, triplet_file)
         self._new_labels = None
-        root = os.path.expanduser(root)
         self._data_path = os.path.join(root, data_file)
-        self._label_file = load_json(root, label_file)
+        self._label_file = os.path.join(root, label_file)
         self.counter = 0
         self.multiplier = multiplier
-        self.get_data()
+        self._triplet_dir = None
+        if triplet_file is not None:
+            self._triplet_dir = os.path.join(root, triplet_file)
+            self.get_triplet()
+        else:
+            self.get_data()
 
     def __getitem__(self, idx):
         if self._transform is not None:
-            # if self.triplet:
-            #     return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
-            #        nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1), nd.array(self._triplet[idx], ctx=gpu(0))
-
-            return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(self._label[idx], ctx=gpu(0)), \
-                   nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1)
-            # return self._transform(nd.array(self._data[idx])), nd.array(self._label[idx])
+            if self._triplet_dir is not None:
+                labels = make_heatmap(self._label[idx], 1, 1, 256)
+                triplets = make_heatmap(self._triplets[idx], self.x_factor, self.y_factor)
+                return self._transform(nd.array(self._data[idx], ctx=gpu(0))), nd.array(labels, ctx=gpu(0)), \
+                       nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1), \
+                       nd.array(triplets, ctx=gpu(0))
+            return self._transform(nd.array(self._data[idx], ctx=gpu(0))), \
+                   nd.array(make_heatmap(self._label[idx], self.x_factor, self.y_factor), ctx=gpu(0)), \
+                nd.array(self._visibility[idx], ctx=gpu(0)).reshape(16, 1, 1)
         return nd.array(self._data[idx], dtype='uint8', ctx=gpu(0)), nd.array(self._label[idx], ctx=gpu(0))
-        # return nd.array(self._data[idx], dtype='uint8'), nd.array(self._label[idx])
 
     def __len__(self):
         return len(self._keys)
 
     def get_data(self, update=False):
-        self._keys = os.listdir(self._data_path)[self.counter * self.multiplier:(self.counter + 1) * self.multiplier]
-        # self._keys = os.listdir(self._data_path)[0:10]
+        self._keys = random.sample(os.listdir(self._data_path), self.multiplier)
+        #[self.counter * self.multiplier:(self.counter + 1) * self.multiplier]
+        labels = [[]] * self.multiplier
+        visibility = [[]] * self.multiplier
+        data_file = [None] * self.multiplier
+        for file in os.listdir(self._label_file):
+            label = load_json(self._label_file, file)
+            for index in range(len(self._keys)):
+                key = self._keys[index]
+                if key in label.keys():
+                    data_file[index] = plt.imread(self._data_path + key, self._flag)
+                    joints, visible = grab_joints(label[key])
+                    labels[index] = joints
+                    visibility[index] = visible
+        self._data = np.array(data_file)
+        # heatmap_labels = []
+        # for label in labels:
+        #     points = []
+        #     for i, j in zip(label[0::2], label[1::2]):
+        #         points.append(create_heatmap(i * self.x_factor, j * self.y_factor, self.label_X, self.label_y))
+        #     heatmap_labels.append(points)
+        # self._label = heatmap_labels
+        self._label = labels
+        self._visibility = visibility
+        # if (self.counter + 1) * self.multiplier > len(os.listdir(self._data_path)):
+        #     self.counter = 0
+        # else:
+        #     self.counter += 1
+
+    def get_triplet(self, update=False):
+        self._keys = random.sample(os.listdir(self._data_path), self.multiplier)
         labels = []
         visibility = []
         data_file = []
-        # triplets = []
-        for key in self._keys:
-            data_file.append(plt.imread(self._data_path + key, self._flag))
-            joints, visible = grab_joints(self._label_file[key])
-            labels.append(joints)
-            # triplets.append(grab_triplet(self._triplet_file[key]))
-            visibility.append(visible)
+        triplets = []
+        for file in os.listdir(self._label_file):
+            label = load_json(self._label_file, file)
+            for key in self._keys:
+                data_file.append(plt.imread(self._data_path + key, self._flag))
+                joints, visible = grab_joints(label[key])
+                labels.append(joints)
+                # triplets.append(grab_triplet(triplet[key]))
+                visibility.append(visible)
         self._data = np.array(data_file)
-        heatmap_labels = []
-        for label in labels:
-            points = []
-            for i, j in zip(label[0::2], label[1::2]):
-                points.append(create_heatmap(i * self.x_factor, j * self.y_factor, self.label_X, self.label_y))
-            heatmap_labels.append(points)
-        self._label = heatmap_labels
-        # self._label = labels
+        # heatmap_labels = []
+        # for label in labels:
+        #     points = []
+        #     for i, j in zip(label[0::2], label[1::2]):
+        #         points.append(create_heatmap(i * self.x_factor, j * self.y_factor,
+        #                                      64 if not self._triplet_file else 256,
+        #                                      64 if not self._triplet_file else 256))
+        #     heatmap_labels.append(points)
+        # self._label = heatmap_labels
+        self._label = labels
+        self._triplets = triplets
         self._visibility = visibility
-        if (self.counter + 1) * self.multiplier > len(os.listdir(self._data_path)):
-            self.counter = 0
-        else:
-            self.counter += 1
+        # if (self.counter + 1) * self.multiplier > len(os.listdir(self._data_path)):
+        #     self.counter = 0
+        # else:
+        #     self.counter += 1
