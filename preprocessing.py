@@ -121,13 +121,13 @@ def update_joints(data, y1, x1, triplet, new_name):
     # }
     new_data = data[[i for i in data.keys()][0]]['annorect']['annopoints']
     for key in new_data.keys():
-        y = new_data[key]['y'] + y1
-        x = new_data[key]['x'] + x1
+        y = y1 + new_data[key]['x']
+        x = x1 - new_data[key]['y']
         new_data[key]['y'] = y
         new_data[key]['x'] = x
     for key2 in triplet.keys():
-        x = triplet[key2]['x'] + x1
-        y = triplet[key2]['y'] + y1
+        y = y1 + triplet[key2]['x']
+        x = x1 - triplet[key2]['y']
         triplet[key2]['y'] = y
         triplet[key2]['x'] = x
     data[[i for i in data.keys()][0]]['image_name'] = new_name
@@ -166,17 +166,25 @@ def pad_image(image, img_dir, size, save_dir, new_name):
     img_array = plt.imread(os.path.join(img_dir, image))
     if len(img_array) > size or len(img_array[0]) > size:
         return False
-    # zero_image = np.full((size, size, 3), 255)
-    # img_array = img_array.transpose(1, 0, 2)
-    # img_array = np.flip(img_array, 1)
+    zero_image = np.full((size, size, 3), 255)
+    img_array = img_array.transpose(1, 0, 2)
+    img_array = np.flip(img_array, 1)
     y, x, _ = img_array.shape
-    y, x = y, 256 - x
+    if x > y:
+        zero_image[256 - y:, :x] = img_array
+        plt.imsave(os.path.join(save_dir, new_name), zero_image.astype('uint8'))
+        return 256 - y, 256
+    else:
+        zero_image[:y, 256 - x:] = img_array
+        plt.imsave(os.path.join(save_dir, new_name), zero_image.astype('uint8'))
+        return 0, 256
+    # y, x = 256 - y, 256 - x
     # zero_image[:y, x:] = img_array
     # new_name = image.strip('.jpg')[::-1] + '.jpg'
     # if new_name == image:
     #     new_name = new_name.strip('.jpg') + '-1.jpg'
     # plt.imsave(os.path.join(save_dir, new_name), zero_image.astype('uint8'))
-    return 0, x
+    # return y, x
 
 
 def rescale_image(image, image_dir, save_dir):
@@ -226,8 +234,8 @@ def create_pad():
 
 
 final_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\Final\\"
-triplet_dict = load_json(f"{final_dir}Final_triplet\\", 'Triplet_scaled_256-top-left.json')
-joint_dict = load_json(f"{final_dir}Final_joint\\", 'Joint_scaled_256-top-left.json')
+triplet_dict = load_json(f"{final_dir}Final_triplet\\", 'Triplet_scaled_256.json')
+joint_dict = load_json(f"{final_dir}Final_joint\\", 'Joint_scaled_256.json')
 image_dir = f"{final_dir}Final_256_sized\\"
 save_dir = f"{final_dir}Final_imageset\\"
 # list_of_data = load_json(image_dir, 'mpii_full.json')
@@ -275,13 +283,21 @@ save_dir = f"{final_dir}Final_imageset\\"
 
 # images = os.listdir(image_dir)
 """
+added = "bottom-right"
 new_triplet = {}
 new_joint = {}
 for key in triplet_dict.keys():
-    new_name = "top-right-" + key
+    new_name = added + "-" + key
     y, x = pad_image(key, image_dir, 256, save_dir, new_name)
     new_joint[new_name], new_triplet[new_name] = update_joints(joint_dict[key], y, x, triplet_dict[key], new_name)
+    # plot.plot_plain(plt.imread(f"{save_dir}{new_name}"), CD.grab_joints(new_joint[new_name]),
+    #                 CD.grab_triplet(new_triplet[new_name]))
+
+create_json(new_joint, f"{final_dir}Final_joint\\", f'Joint_scaled_256-{added}.json')
+create_json(new_triplet, f"{final_dir}Final_triplet\\", f'Triplet_scaled_256-{added}.json')
 """
+
+
 #     # new_triplet[key] = find_change(None, None, triplet_dict[key])
 # a = plt.imread(f"{save_dir}\\{new_name}")
 #     # scale = rescale_image(key, f"{image_dir}cut_images\\", f"{image_dir}Final\\Final_256_sized\\")
@@ -295,14 +311,14 @@ for key in triplet_dict.keys():
 # create_json(new_triplet, f"{final_dir}Final_triplet\\", 'Triplet_scaled_256-top-right.json')
 # key = "top-right-033362840.jpg"
 # key = "top-right-089030920.jpg"
-test = random.sample(os.listdir(save_dir), 100)
-for key in test:
-    if key in joint_dict.keys():
-        a = plt.imread(f"{save_dir}{key}")
-        plot.plot_plain(a, CD.grab_joints(joint_dict[key]), CD.grab_triplet(triplet_dict[key]))
+# test = random.sample(os.listdir(save_dir), 100)
+# for key in test:
+#     if key in joint_dict.keys():
+#         a = plt.imread(f"{save_dir}{key}")
+#         plot.plot_plain(a, CD.grab_joints(joint_dict[key]), CD.grab_triplet(triplet_dict[key]))
 print(0)
-# test = os.listdir(final_dir + "Final_test\\")
-# saved = os.listdir(save_dir)
-# for image in test:
-#     if image in saved:
-#         os.replace(save_dir + image, final_dir + "Final_test\\" + image)
+test = os.listdir(final_dir + "Final_test\\")
+saved = os.listdir(save_dir)
+for image in test:
+    if image in saved:
+        os.replace(save_dir + image, final_dir + "Final_test\\" + image)

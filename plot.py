@@ -130,8 +130,8 @@ def plot_pred(img, coords, triplets=None):
             for j in range(len(triplets)):
                 trips = triplets[j]
                 for cm_ind, jp in zip(cmi2, triplet_combo):
-                    ax.plot([pts[jp[0]][0], trips[jp[1]][0]], [pts[jp[0]][1], trips[jp[1]][1]],
-                            linewidth=3.0, alpha=0.7, color=plt.cm.cool(cm_ind))
+                    # ax.plot([pts[jp[0]][0], trips[jp[1]][0]], [pts[jp[0]][1], trips[jp[1]][1]],
+                    #         linewidth=3.0, alpha=0.7, color=plt.cm.cool(cm_ind))
                     ax.scatter(trips[jp[1]][0], trips[jp[1]][1], s=20)
     return ax
 

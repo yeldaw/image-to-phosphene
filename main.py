@@ -10,16 +10,14 @@ import CustomDataset as CD
 # Maximum image size
 image_size = 256
 batch_size = 4
-root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\"
+root_dir = "F:\\Thesis Datasets\\mpii\\mpii_human_pose_v1\\Final\\"
 
-image_dir = f"full_256\\"
-# image_dir = f"cut_images_{image_size}_white\\"
-# image_dir = f"images\\"
-#
-# test_dir = f"test_{image_size}\\"
-label_json = "mpii_full_256"
-# label_json = "mpii_256_shrunk_extended"
-# label_json = "mpii_singular"
+image_dir = "Final_imageset\\"
+# test_dir = f"Test_imageset\\"
+label_json = "Final_joint"
+triplet_json = "Final_triplet"
+test_json = "Final_json"
+
 modified_images_dir = ''
 
 
@@ -40,20 +38,28 @@ def modify_images():
         plt.imsave(root_dir + modified_images_dir + new_name, np.flip(np.flip(img, 1), 0))
 
 
-def train_setup(net=False):
+def train_setup(net=False, triplet=False):
     # Creates transformer
     transformer = transforms.Compose([transforms.ToTensor()])
 
     # Loads datasets
-    train_dataset = CD.CustomDataset(root_dir, image_dir, label_json + ".json",
-                                     image_size, image_size, 64, 64, transform=transformer)
+    if not triplet:
+        train_dataset = CD.CustomDataset(root_dir, image_dir, label_json,
+                                         image_size, image_size, 64, 64, transform=transformer)
+    else:
+        train_dataset = CD.CustomDataset(root_dir, image_dir, label_json,
+                                         image_size, image_size, 64, 64, transform=transformer,
+                                         triplet_file=triplet_json)
     # test_dataset = CD.CustomDataset(root_dir, test_dir, label_json + ".json",
     # image_size, image_size, transform=transformer)
 
     # testdata = mx.gluon.data.DataLoader(test_dataset, batch_size=batch_size)
 
-    net = train.Network(train_dataset, root_dir, batch_size, train_old_net=net, epoch="2600")
-    net.train_network()
+    net = train.Network(train_dataset, root_dir, batch_size, train_old_net=net, epoch="91", triplet=triplet)
+    if triplet:
+        net.train_triplet()
+    else:
+        net.train_network()
 
 
 def test(dic, k1):
@@ -64,7 +70,7 @@ def test(dic, k1):
     plot.display_coords(plt.imread(root_dir + image_dir + k2), b)
 
 
-train_setup(True)
+train_setup(net=False, triplet=False)
 # modify_json()
 
 

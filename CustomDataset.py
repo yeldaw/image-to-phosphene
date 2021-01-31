@@ -237,18 +237,21 @@ class CustomDataset(dataset.Dataset):
 
     def get_triplet(self, update=False):
         self._keys = random.sample(os.listdir(self._data_path), self.multiplier)
-        labels = []
-        visibility = []
-        data_file = []
-        triplets = []
-        for file in os.listdir(self._label_file):
-            label = load_json(self._label_file, file)
-            for key in self._keys:
-                data_file.append(plt.imread(self._data_path + key, self._flag))
-                joints, visible = grab_joints(label[key])
-                labels.append(joints)
-                # triplets.append(grab_triplet(triplet[key]))
-                visibility.append(visible)
+        labels = [[]] * self.multiplier
+        visibility = [[]] * self.multiplier
+        data_file = [None] * self.multiplier
+        triplets = [[]] * self.multiplier
+        for file in os.listdir(self._triplet_dir):
+            triplet = load_json(self._triplet_dir, file)
+            label = load_json(self._label_file, "Joint" + file.split("Triplet")[1])
+            for index in range(len(self._keys)):
+                key = self._keys[index]
+                if key in triplet.keys():
+                    data_file[index] = plt.imread(self._data_path + key, self._flag)
+                    joints, visible = grab_joints(label[key])
+                    labels[index] = joints
+                    triplets[index] = grab_triplet(triplet[key])
+                    visibility[index] = visible
         self._data = np.array(data_file)
         # heatmap_labels = []
         # for label in labels:
